@@ -12,21 +12,25 @@ class MultiLayerHF:
     '''
     # ---------- コンストラクタ
    
-    def __init__(self, stdlist, pts_gen, layer_length_min=0.1, div_u=1001):
+    def __init__(self, stdlist, pts_gen, layer_length_min=0.1, h_off=0, div_u=1001):
         '''コンストラクタ'''
         # stdlist : stdlistクラスのインスタンス
         # pts_gen : 母関数定義用の3次元座標点 (4点以上) 現状は軸はグローバルZ軸のみ対応
         # layer_length_min : 生成層の最小RZ平面上長さ (デフォルトは0.1mとする)
+        # h_off : ヒンジ部オフセット量（デフォルト0）
         # div_u : パラメータ u (0<=u<=1)の分割数 (デフォルトは1001とする)
         
         self.stdlist = stdlist
         self.pts_gen = pts_gen
         self.layer_length_min = layer_length_min
         self.div_u = div_u
+        self.h_off = h_off
         
         # 取得したstdlistからnsym,vecgg等を取得
         self.n_sym = stdlist.n_sym
         self.vecgg = stdlist.vecgg
+        self.ipl_beta_pp_t = stdlist.ipl_beta_pp_t
+        self.ipl_beta_qq_t = stdlist.ipl_beta_qq_t
         # 母線定義用補間関数R(Z)の定義
         self.gtr_rr_zz=ipl.interp1d(self.pts_gen[:,2], self.pts_gen[:,0], kind='cubic')
         # Zの範囲（最下点座標と最上点座標）取得
@@ -61,8 +65,6 @@ class MultiLayerHF:
 
         self.list_kl = []
         self.list_t0 = []
-#        self.list_coord0_pp = []
-#        self.list_coord0_qq = []
         
         # 各層でのループ
         zz_prev = self.zz_min #ループ初期点定義
@@ -76,17 +78,11 @@ class MultiLayerHF:
             # _layer_length : 生成層のRZ平面上長さ
             _layer_length = np.sqrt((rr_prev * self.vecgg(t0)[0])**2 + (rr_prev * self.vecgg(t0)[1])**2)
             if _layer_length < self.layer_length_min : _flag = False
-#            print("_layer_length =", _layer_length)
-#            print("_flag =", _flag)
             
             if _flag : # 層追加条件を満たす場合
                 _lc += 1
                 zz_tmp = zz_prev + rr_prev * self.vecgg(t0)[1]
                 rr_tmp = rr_prev + rr_prev * self.vecgg(t0)[0]
-#                print("layer count = ",_lc)
-#                print("t0, kl =",t0,kl)
-#                print("bottom point", rr_prev, zz_prev)
-#                print("crossing point", rr_tmp, zz_tmp)
 
                 #  リストへの格納
                 self.list_kl.append(float(kl))
@@ -114,14 +110,16 @@ class MultiLayerHF:
         # 探索成功フラグ
         flg_cp_success = False
         
+        _h_off = self.h_off
+
         # Positive 方向の二分法サーチ
-        if self.tmpfunc(0.001, _rr_prev, _zz_prev) * self.tmpfunc(_tmax, _rr_prev, _zz_prev) < 0:
+        if self.tmpfunc(0.0001, _rr_prev, _zz_prev, _h_off) * self.tmpfunc(_tmax, _rr_prev, _zz_prev, _h_off) < 0:
             # Positive 方向の探索
-            _t0, r = opt.bisect(self.tmpfunc, 0.001, _tmax, args=(_rr_prev, _zz_prev), full_output=True, disp=False)
+            _t0, r = opt.bisect(self.tmpfunc, 0.0001, _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
             flg_cp_success = r.converged
-        elif self.tmpfunc(_tmin, _rr_prev, _zz_prev) * self.tmpfunc(-0.001, _rr_prev, _zz_prev) < 0:
+        elif self.tmpfunc(_tmin, _rr_prev, _zz_prev, _h_off) * self.tmpfunc(-0.0001, _rr_prev, _zz_prev, _h_off) < 0:
             # Negative 方向の探索
-            _t0, r = opt.bisect(self.tmpfunc, _tmin, -0.001, args=(_rr_prev, _zz_prev), full_output=True, disp=False )
+            _t0, r = opt.bisect(self.tmpfunc, _tmin, -0.0001, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
             flg_cp_success = r.converged
         
         # 成功ならt=t0 の時の当該層のスケール係数kを計算
@@ -130,18 +128,35 @@ class MultiLayerHF:
         else :
             _t0, _kl = 0, 0
 
-#        print('check')
-#        print('flg_cp_success=', flg_cp_success)
-#        print('_t0, _kl = ', _t0, _kl)
         return _t0, _kl, flg_cp_success
     
-    def tmpfunc(self, _t, _rr_prev, _zz_prev):
-        ''' 交点判定関数(値が0の時、R_prev*Gの軌跡と指定母線が交わる) '''
-        zz_tmp = _zz_prev + _rr_prev * self.vecgg(_t)[1]
-        rr_tmp1 = _rr_prev + _rr_prev * self.vecgg(_t)[0]
+#    def tmpfunc(self, _t, _rr_prev, _zz_prev):
+#        ''' 交点判定関数(値が0の時、R_prev*Gの軌跡と指定母線が交わる) '''
+#        zz_tmp = _zz_prev + _rr_prev * self.vecgg(_t)[1]
+#        rr_tmp1 = _rr_prev + _rr_prev * self.vecgg(_t)[0]
+#        rr_tmp2 = self.gtr_rr_zz(zz_tmp)
+#        return rr_tmp1 - rr_tmp2
+    
+    def tmpfunc(self, _t, _rr_prev, _zz_prev, _h_off):
+        ''' 交点判定関数（オフセット有り）(値が0の時、R_prev*Gの軌跡と指定母線が交わる) '''
+        # オフセットベクトルdp,dqの計算
+        # _t > 0 (positive) : dpはbeta_pを反時計回りにpi/2回転、dqはbeta_qを時計回りにpi/2回転
+        # _t < 0 (negative) : dpはbeta_pを時計回りにpi/2回転、dqはbeta_qを反時計回りにpi/2回転
+        if _t > 0 :
+            _off_angle_pp = self.ipl_beta_pp_t(_t) + PI/2
+            _off_angle_qq = self.ipl_beta_qq_t(_t) - PI/2
+        else:
+            _off_angle_pp = self.ipl_beta_pp_t(_t) - PI/2
+            _off_angle_qq = self.ipl_beta_qq_t(_t) + PI/2
+        _d_pp = np.array([np.cos(_off_angle_pp),np.sin(_off_angle_pp)])*_h_off
+        _d_qq = np.array([np.cos(_off_angle_qq),np.sin(_off_angle_qq)])*_h_off
+
+        _rr_prev_off = _rr_prev + _d_pp[0]
+        rr_tmp1 = _rr_prev + _rr_prev_off * self.vecgg(_t)[0] - _d_qq[0]
+        zz_tmp = _zz_prev + _rr_prev_off * self.vecgg(_t)[1] - _d_qq[1]
         rr_tmp2 = self.gtr_rr_zz(zz_tmp)
         return rr_tmp1 - rr_tmp2
-    
+
     def return_tminmax(self, _rr_prev, _zz_prev):
         ''' 二分法サーチをするときのtの上下限値（母線のZの範囲と重なる範囲） '''
         for _t in np.linspace(-1,0,1000):
