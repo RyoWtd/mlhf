@@ -63,7 +63,7 @@ class MultiLayerHF:
     # ---------- calc 1 
     def calc_1(self):
         ''' 全ての層の初期状態(ti0とki)の計算 '''
-        print("--- start calc_1 ---")
+        print("<<--- START calc_1 --->>")
 
         self.list_kl = []
         self.list_t0 = []
@@ -110,12 +110,12 @@ class MultiLayerHF:
                 self.lc = _lc  # 層数確定
         self.list_kl = np.array(self.list_kl)
         self.list_t0 = np.array(self.list_t0)
-        print("-- result --")
-        print("list_t0")
+        print(" -- result --")
+        print(" list_t0")
         print(self.list_t0)
-        print("list_kl")
+        print(" list_kl")
         print(self.list_kl)
-        print("--- end calc_1 ---")
+        print("<<--- END calc_1 --->>")
         return
 
     def calc_t0_kl(self, _rr_prev, _zz_prev, _h_off):
@@ -123,14 +123,8 @@ class MultiLayerHF:
         
         # Zの最大値に対するtの取得
         _tmin, _tmax = self.return_tminmax(_rr_prev, _zz_prev, _h_off)
-#        print('_tmin,_tmax',_tmin,_tmax)
-#        print(self.tmpfunc(np.max([_tmin,0.0001]), _rr_prev, _zz_prev, _h_off))
-#        print(self.tmpfunc(_tmax, _rr_prev, _zz_prev, _h_off))
-#        print(self.tmpfunc(_tmin, _rr_prev, _zz_prev, _h_off))
-#        print(self.tmpfunc(np.min([_tmax,-0.0001]), _rr_prev, _zz_prev, _h_off))
 
         # 母線曲線とベクトルG×R_prevの交点サーチ
-
         # 探索成功フラグ
         flg_cp_success = False
         
@@ -148,7 +142,6 @@ class MultiLayerHF:
         if flg_cp_success :
             _d_pp, _d_qq = self.return_offvecs_dpp_dqq(_t0, _h_off)
             _rr_prev_off = _rr_prev + _d_pp[0]
-
             _kl = _rr_prev_off/self.stdlist.ipl_rr_t(_t0) # 基準環状骨組に対するスケール(オフセット部除く)
         else :
             print("error 001")
@@ -160,29 +153,18 @@ class MultiLayerHF:
         ''' 二分法サーチをするときのtの上下限値（母線のZの範囲と重なる範囲） '''
         for _t in np.linspace(0,-1,1000):
             _d_pp, _d_qq = self.return_offvecs_dpp_dqq(_t, _h_off)
-#            _rr_prev_off = _rr_prev + _d_pp[0]
-#            zz_tmp = _zz_prev + _rr_prev_off * self.vecgg(_t)[1] - _d_qq[1]
             dummy, zz_tmp = self.return_next_rr_and_zz(_t, _rr_prev, _zz_prev, _d_pp, _d_qq)
             if zz_tmp > self.zz_max:
                 break
             _tmin = _t
         for _t in np.linspace(0,1,1000):
             _d_pp, _d_qq = self.return_offvecs_dpp_dqq(_t, _h_off)
-#            _rr_prev_off = _rr_prev + _d_pp[0]
-#            zz_tmp = _zz_prev + _rr_prev_off * self.vecgg(_t)[1] - _d_qq[1]
             dummy, zz_tmp = self.return_next_rr_and_zz(_t, _rr_prev, _zz_prev, _d_pp, _d_qq)
             if zz_tmp > self.zz_max:
                 break
             _tmax = _t
         return _tmin, _tmax
 
-#    def tmpfunc(self, _t, _rr_prev, _zz_prev):
-#        ''' 交点判定関数(値が0の時、R_prev*Gの軌跡と指定母線が交わる) '''
-#        zz_tmp = _zz_prev + _rr_prev * self.vecgg(_t)[1]
-#        rr_tmp1 = _rr_prev + _rr_prev * self.vecgg(_t)[0]
-#        rr_tmp2 = self.gtr_rr_zz(zz_tmp)
-#        return rr_tmp1 - rr_tmp2
-    
     def tmpfunc(self, _t, _rr_prev, _zz_prev, _h_off):
         ''' 交点判定関数（オフセット有り）(値が0の時、R_prev*Gの軌跡と指定母線が交わる) '''
         #オフセットベクトルの計算
@@ -196,6 +178,15 @@ class MultiLayerHF:
 
     def return_offvecs_dpp_dqq(self, _t, _h_off):
         ''' オフセットベクトルdp,dqの計算 '''
+
+        _off_angle_pp, _off_angle_qq = self.return_offangles_pp_qq(_t)
+
+        _d_pp = np.array([np.cos(_off_angle_pp),np.sin(_off_angle_pp)])*_h_off
+        _d_qq = np.array([np.cos(_off_angle_qq),np.sin(_off_angle_qq)])*_h_off
+        return _d_pp, _d_qq
+
+    def return_offangles_pp_qq(self, _t):
+        ''' オフセットベクトルdp,dqの仰角の計算 '''
         # _t > 0 (positive) : dpはbeta_pを反時計回りにpi/2回転、dqはbeta_qを時計回りにpi/2回転
         # _t < 0 (negative) : dpはbeta_pを時計回りにpi/2回転、dqはbeta_qを反時計回りにpi/2回転
         if _t > 0 :
@@ -204,10 +195,8 @@ class MultiLayerHF:
         elif _t <= 0 :
             _off_angle_pp = self.ipl_beta_pp_t(_t) - PI/2
             _off_angle_qq = self.ipl_beta_qq_t(_t) + PI/2
-        _d_pp = np.array([np.cos(_off_angle_pp),np.sin(_off_angle_pp)])*_h_off
-        _d_qq = np.array([np.cos(_off_angle_qq),np.sin(_off_angle_qq)])*_h_off
-        return _d_pp, _d_qq
-
+        return _off_angle_pp, _off_angle_qq
+    
     def return_next_rr_and_zz(self, _t, _rr_prev, _zz_prev, _d_pp, _d_qq):
         ''' オフセットを考慮した上点座標の計算 '''
         _rr_prev_off = _rr_prev + _d_pp[0]
@@ -219,16 +208,15 @@ class MultiLayerHF:
     def calc_2(self):
         ''' 各層のu=0から1での挙動計算 各層でのt(u)(u=0,...,1)を格納 '''
 
-        print("--- start calc_2 ---")
+        print("<<--- START calc_2 --->>")
 
-        self.list_t_u=np.array([self.num_u for i in range(self.lc)]) 
+#        self.list_t_u=np.array([self.num_u for i in range(self.lc)]) 
+        self.list_t_u=np.zeros((self.lc,self.div_u))
         # 各層のt(u)を格納する2次元配列を初期化
 
         # 初層のt(u)は、初層のt0からt_limit(t0>t_Rmaxの場合), または-t_limit(t0<t_Rmaxの場合)までの等分割とする。
-#        t_limit = 0.9999999
         self.t_limit = 0.9999999
-        # ヒンジオフセットを考慮する際など、折りたたみ最終状態の目標t値(完全折りたたみは0.9999999)
-        self.idx_u_max = 0 
+        self.idx_u_max = 0 # uのインデックスの最大値（以下の探索により決定）
 
         if self.list_t0[0] > self.stdlist.t_at_rr_max :
             self.list_t_u[0] = np.linspace(self.list_t0[0], self.t_limit, self.div_u)
@@ -239,12 +227,12 @@ class MultiLayerHF:
         if self.lc >= 2: #層数が2以上の場合
             list_t_u_tmp = np.zeros(self.lc) # 一時格納用1次元フォルダ
             for _idx_u in range(self.div_u): # u loop
-                list_t_u_tmp[0] = self.list_t_u[0][_idx_u] # 必要無いが一応合わせて代入しておく
+#                list_t_u_tmp[0] = self.list_t_u[0][_idx_u] # 後で初期層含め格納するため、合わせて代入しておく
+                list_t_u_tmp[0] = self.list_t_u[0,_idx_u] # 後で初期層含め格納するため、合わせて代入しておく
                 for _idx_layer in range(1,self.lc): # layer loop
                     _h_off_prev = self.h_off #下の層のオフセット量(ここでは共通値とする)
                     _h_off_this = self.h_off #今の層のオフセット量(ここでは共通値とする)
-#                    _t_prev = self.list_t_u[_idx_layer-1,_idx_u] # 下の層i-1のt_i-1(u)
-                    _t_prev = list_t_u_tmp[_idx_layer-1]
+                    _t_prev = list_t_u_tmp[_idx_layer-1] # 下の層i-1のt_i-1(u)
 
                     kl_prev, kl_this = self.list_kl[_idx_layer-1], self.list_kl[_idx_layer]
                     # 下層、現層のk値
@@ -256,7 +244,8 @@ class MultiLayerHF:
                     if _idx_u == 0:
                         _t_this_pre_u = self.list_t0[_idx_layer]
                     else:
-                        _t_this_pre_u = self.list_t_u[_idx_layer][_idx_u-1]
+#                        _t_this_pre_u = self.list_t_u[_idx_layer][_idx_u-1]
+                        _t_this_pre_u = self.list_t_u[_idx_layer,_idx_u-1]
 
                     _t_this_min = np.max([_t_this_pre_u - 0.01, -0.9999999])
                     _t_this_max = np.min([_t_this_pre_u + 0.01, 0.9999999])
@@ -266,8 +255,7 @@ class MultiLayerHF:
                         check = self.func_cnn(_t_this_min,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this)*\
                             self.func_cnn(_t_this_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this)
                         if check >= 0 : 
-                            print("error 102")
-                            print("Bisection boundary error. Search stopped at _idx_u =",_idx_u)
+                            print("(Bisection boundary) Search stopped at _idx_u =",_idx_u)
                             flg_cp_success = False
                             break # layer loop
                         _t_this, r = opt.bisect(self.func_cnn, _t_this_min, _t_this_max, \
@@ -289,7 +277,6 @@ class MultiLayerHF:
 
                     if flg_cp_success :
                         list_t_u_tmp[_idx_layer] = _t_this
-#                        self.list_t_u[_idx_layer,_idx_u] = _t_this
                     else:
                         print("error 103")
                         print("Error. Ssearch stopped at _idx_u =",_idx_u)
@@ -301,12 +288,14 @@ class MultiLayerHF:
                     self.idx_u_max = _idx_u
                 else :
                     break # u loop
+                if _idx_u % 100 == 0 : #途中経過表示
+                    print(" finished idx_u = ",_idx_u)
                 # ----- u loop end -----
-            print('Number of layers =',self.lc)
-            print('idx_u_max',self.idx_u_max)
-            print('u_max',self.num_u[self.idx_u_max])
+            print(' -- result --')
+            print(' idx_u_max, u_max =',self.idx_u_max, self.num_u[self.idx_u_max])
+            print(' t(u_max)=',self.list_t_u[:,self.idx_u_max])
 
-        print("--- end calc_2 ---")
+        print("<<--- END calc_2 --->>")
         return
         
     def func_cnn(self,_t_this,_t_prev,_kl_prev,_kl_this,_d_qq_prev,_h_off_this):
@@ -320,18 +309,11 @@ class MultiLayerHF:
     def calc_3(self):
         ''' 各層の諸元をu=0,...,1の範囲で計算 '''
 
-        print("--- start calc_3 ---")
-
-#        self.list_beta_pp=np.zeros((self.lc, self.div_u))
-#        self.list_beta_qq=np.zeros((self.lc, self.div_u)
-#        self.list_phi=np.zeros((self.lc, self.div_u))
-#        self.list_psi=np.zeros((self.lc, self.div_u))
-#        self.list_kappa=np.zeros((self.lc, self.div_u))
+        print("<<--- START calc_3 --->>")
 
         if self.lc == 0 :
-            print(" error! : lc = 0")  # 0層しかない場合はここで終了
+            print(" error! : lc = 0")  # 層が無い場合はここで終了
             return
-
 
         # 各層各ustep毎の諸元を格納
         self.list_beta_pp = self.mapping_foreach_u(self.list_t_u, self.stdlist.ipl_beta_pp_t)
@@ -345,26 +327,107 @@ class MultiLayerHF:
         self.list_vv = self.mapping_foreach_u(self.list_t_u, self.stdlist.ipl_vv_t)
         self.list_ss = self.mapping_foreach_u(self.list_t_u, self.stdlist.ipl_ss_t)
 
+        # 各層のオフセットベクトル仰角
+        self.list_offangle_pp=np.zeros((self.lc, self.div_u))
+        self.list_offangle_qq=np.zeros((self.lc, self.div_u))
+        for _idx_u in range(self.idx_u_max+1):
+            for _idx_layer in range(self.lc):
+                off_angle_pp, off_angle_qq = self.return_offangles_pp_qq(self.list_t_u[_idx_layer,_idx_u])
+                self.list_offangle_pp[_idx_layer,_idx_u]=off_angle_pp
+                self.list_offangle_qq[_idx_layer,_idx_u]=off_angle_qq
+#        self.list_offangle_pp, self.list_offangle_qq = self.return_offangles_pp_qq(self.list_t_u)
+
         # 各層の下部節点(P)、上部節点(Q)の全体R,Z座標を格納
-        # 初期化
+        # list_coordr_pp,list_coodz_pp : 下部ヒンジ中央点のR,Z座標
+        # list_coordr_qq,list_coodz_qq : 上部ヒンジ中央点のR,Z座標
+        # list_coordr_pp_off,list_coodz_pp_off : 下部ヒンジオフセット点のR,Z座標
+        # list_coordr_qq_off,list_coodz_qq_off : 上部ヒンジオフセット点のR,Z座標
+
         self.list_coordr_pp=np.zeros((self.lc, self.div_u))
         self.list_coordz_pp=np.zeros((self.lc, self.div_u))
         self.list_coordr_qq=np.zeros((self.lc, self.div_u))
         self.list_coordz_qq=np.zeros((self.lc, self.div_u))
-        # 上記のR,V,Sを用いて計算。ただしrr,vv,ssは基準サイズでの大きさなので、座標作成のため各層klでスケーリングする
+        self.list_coordr_pp_off=np.zeros((self.lc, self.div_u))
+        self.list_coordz_pp_off=np.zeros((self.lc, self.div_u))
+        self.list_coordr_qq_off=np.zeros((self.lc, self.div_u))
+        self.list_coordz_qq_off=np.zeros((self.lc, self.div_u))
+
+        # R,V,S,d_pp,d_qqを用いて計算。
+        # ただしrr,vv,ssは基準サイズでの大きさなので、座標作成のため各層klでスケーリングする
         tmp_list_kl = self.list_kl.reshape(self.lc,1) # ブロードキャスト用に2次元配列に変換
 
-        tmp_list_scaled_rr = self.list_rr * tmp_list_kl
-        tmp_list_scaled_vv = self.list_vv * tmp_list_kl
-        tmp_list_scaled_ss = self.list_ss * tmp_list_kl
+        self.list_scaled_rr = self.list_rr * tmp_list_kl
+        self.list_scaled_vv = self.list_vv * tmp_list_kl
+        self.list_scaled_ss = self.list_ss * tmp_list_kl
 
-        self.list_coordr_pp=tmp_list_scaled_rr
-        self.list_coordr_qq=tmp_list_scaled_ss
+        h_off = self.h_off
+        self.list_d_pp_0 = np.cos(self.list_offangle_pp) * h_off
+        self.list_d_pp_1 = np.sin(self.list_offangle_pp) * h_off
+        self.list_d_qq_0 = np.cos(self.list_offangle_qq) * h_off
+        self.list_d_qq_1 = np.sin(self.list_offangle_qq) * h_off
+
+        # 各層の層間ベクトル（下部ヒンジ中央点から上部ヒンジ中央点までのベクトル）成分の計算
+        vec_frame_scaled_rr = np.zeros((self.lc, self.div_u))
+        vec_frame_scaled_zz = np.zeros((self.lc, self.div_u))
+        for _idx_u in range(self.idx_u_max+1):
+            list_t_u_tmp=self.list_t_u[:,_idx_u]
+            list_d_pp_0_tmp=self.list_d_pp_0[:,_idx_u]
+            list_d_pp_1_tmp=self.list_d_pp_1[:,_idx_u]
+            list_d_qq_0_tmp=self.list_d_qq_0[:,_idx_u]
+            list_d_qq_1_tmp=self.list_d_qq_1[:,_idx_u]
+
+#            vec_frame_scaled_rr[:,_idx_u] = list_d_pp_0_tmp + self.list_kl*self.vecgg(list_t_u_tmp)[0] - list_d_qq_0_tmp
+#            vec_frame_scaled_zz[:,_idx_u] = list_d_pp_1_tmp + self.list_kl*self.vecgg(list_t_u_tmp)[1] - list_d_qq_1_tmp
+            vec_frame_scaled_rr[:,_idx_u] = list_d_pp_0_tmp + (self.list_scaled_ss[:,_idx_u]-self.list_scaled_rr[:,_idx_u])\
+                 - list_d_qq_0_tmp
+            vec_frame_scaled_zz[:,_idx_u] = list_d_pp_1_tmp + self.list_scaled_vv[:,_idx_u] - list_d_qq_1_tmp
+
+#        self.list_coordr_pp_off = self.list_scaled_rr
+#        self.list_coordr_qq_off = self.list_scaled_ss
+
+        for _idx_layer in range(0, self.lc):
+            # 下部ヒンジ中央点P座標の計算
+            if _idx_layer == 0:
+                self.list_coordz_pp[_idx_layer,:] = self.zz_min
+                self.list_coordr_pp[_idx_layer,:] = self.list_scaled_rr[_idx_layer,:] - self.list_d_pp_0[_idx_layer,:]
+            else :
+                self.list_coordz_pp[_idx_layer,:] = self.list_coordz_pp[_idx_layer-1,:] + vec_frame_scaled_zz[_idx_layer-1,:]
+                self.list_coordr_pp[_idx_layer,:] = self.list_coordr_pp[_idx_layer-1,:] + vec_frame_scaled_rr[_idx_layer-1,:]
+            # 上部ヒンジ中央点Q座標の計算
+            self.list_coordz_qq[_idx_layer,:] = self.list_coordz_pp[_idx_layer,:] + vec_frame_scaled_zz[_idx_layer,:]
+            self.list_coordr_qq[_idx_layer,:] = self.list_coordr_pp[_idx_layer,:] + vec_frame_scaled_rr[_idx_layer,:]
+            # 下部ヒンジオフセット点Poff 座標の計算
+            self.list_coordz_pp_off[_idx_layer,:] = self.list_coordz_pp[_idx_layer,:] + self.list_d_pp_1[_idx_layer,:]
+            self.list_coordr_pp_off[_idx_layer,:] = self.list_coordr_pp[_idx_layer,:] + self.list_d_pp_0[_idx_layer,:]
+            # 上部ヒンジオフセット点Qoff 座標の計算
+            self.list_coordz_qq_off[_idx_layer,:] = self.list_coordz_qq[_idx_layer,:] + self.list_d_qq_1[_idx_layer,:]
+            self.list_coordr_qq_off[_idx_layer,:] = self.list_coordr_qq[_idx_layer,:] + self.list_d_qq_0[_idx_layer,:]
+
 
         # 最下層の下部節点のZ座標は不変,上部節点のZ座標は最下層のVと同じ
-        self.list_coordz_pp[0] = self.zz_min
-        self.list_coordz_qq[0] = self.list_coordz_pp[0] + tmp_list_scaled_vv[0]
+#        self.list_coordz_pp[0] = self.zz_min
+#        self.list_coordz_qq[0] = self.list_coordz_pp[0] + tmp_list_scaled_vv[0]
 
+        
+#        if self.lc == 1 :
+#            print("<<--- END calc_3 --->>")
+#            return # 1層以下しかない場合はここで終了
+#
+#        # !!!!!!!! この辺もオフセット対応に直す必要有り !!!!!!!!!!!!
+#        for _i in range(1, self.lc):
+#            self.list_coordz_pp[_i] = self.list_coordz_qq[_i-1]
+#            self.list_coordz_qq[_i] = self.list_coordz_pp[_i] + tmp_list_scaled_vv[_i]
+
+        print("<<--- END calc_3 --->>")
+        return
+
+    def mapping_foreach_u(self, _list_t_u, _ipl_x_t):
+        ''' t_uリストとipl関数から、各層の各uに対する関数値を返す '''
+        _lc, _div_u = np.shape(_list_t_u)
+        return np.array([_ipl_x_t(_list_t_u[i]) for i in range(_lc)])
+
+    def calc_elem_coord_vec(self):
+        ''' 各ustepでの各層の座標軸ベクトルを計算 '''
         # 要素座標軸ベクトルの計算と格納
         # 成分は順に、層番号、uステップ番号、成分の全体座標軸番号（全体X,Y,Z）
         # 初期化
@@ -372,30 +435,11 @@ class MultiLayerHF:
         self.list_elem_coord_y=np.zeros((self.lc, self.div_u, 3))
         self.list_elem_coord_z=np.zeros((self.lc, self.div_u, 3))
 
-#        self.list_elem_coord_x, self.list_elem_coord_y, self.list_elem_coord_z = self.calc_elem_coord_vec()
-        
-        if self.lc == 1 :
-            print("--- end calc_3 ---")
-            return # 1層以下しかない場合はここで終了
-
-        # !!!!!!!! この辺もオフセット対応に直す必要有り !!!!!!!!!!!!
-        for _i in range(1, self.lc):
-            self.list_coordz_pp[_i] = self.list_coordz_qq[_i-1]
-            self.list_coordz_qq[_i] = self.list_coordz_pp[_i] + tmp_list_scaled_vv[_i]
-
-        print("--- end calc_3 ---")
-        return
-    
-    def calc_elem_coord_vec(self):
-        # 各ustepでの各層の座標軸ベクトルを計算
         for ic in range(self.lc):
             for iu in range(self.div_u):
                 _t = self.list_t_u[ic,iu]
                 self.list_elem_coord_x[ic,iu], self.list_elem_coord_y[ic,iu], self.list_elem_coord_z[ic,iu] \
                 = self.stdlist.calc_crawford_elem_vec_t(_t)
         
-    def mapping_foreach_u(self, _list_t_u, _ipl_x_t):
-        _lc, _div_u = np.shape(_list_t_u)
-        return np.array([_ipl_x_t(_list_t_u[i]) for i in range(_lc)])
 
   
