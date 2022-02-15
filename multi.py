@@ -63,6 +63,7 @@ class MultiLayerHF:
     # ---------- calc 1 
     def calc_1(self):
         ''' 全ての層の初期状態(ti0とki)の計算 '''
+        print("--- start calc_1 ---")
 
         self.list_kl = []
         self.list_t0 = []
@@ -109,7 +110,12 @@ class MultiLayerHF:
                 self.lc = _lc  # 層数確定
         self.list_kl = np.array(self.list_kl)
         self.list_t0 = np.array(self.list_t0)
-        print("calc_1 finished!")
+        print("-- result --")
+        print("list_t0")
+        print(self.list_t0)
+        print("list_kl")
+        print(self.list_kl)
+        print("--- end calc_1 ---")
         return
 
     def calc_t0_kl(self, _rr_prev, _zz_prev, _h_off):
@@ -117,11 +123,11 @@ class MultiLayerHF:
         
         # Zの最大値に対するtの取得
         _tmin, _tmax = self.return_tminmax(_rr_prev, _zz_prev, _h_off)
-        print('_tmin,_tmax',_tmin,_tmax)
-        print(self.tmpfunc(np.max([_tmin,0.0001]), _rr_prev, _zz_prev, _h_off))
-        print(self.tmpfunc(_tmax, _rr_prev, _zz_prev, _h_off))
-        print(self.tmpfunc(_tmin, _rr_prev, _zz_prev, _h_off))
-        print(self.tmpfunc(np.min([_tmax,-0.0001]), _rr_prev, _zz_prev, _h_off))
+#        print('_tmin,_tmax',_tmin,_tmax)
+#        print(self.tmpfunc(np.max([_tmin,0.0001]), _rr_prev, _zz_prev, _h_off))
+#        print(self.tmpfunc(_tmax, _rr_prev, _zz_prev, _h_off))
+#        print(self.tmpfunc(_tmin, _rr_prev, _zz_prev, _h_off))
+#        print(self.tmpfunc(np.min([_tmax,-0.0001]), _rr_prev, _zz_prev, _h_off))
 
         # 母線曲線とベクトルG×R_prevの交点サーチ
 
@@ -145,6 +151,7 @@ class MultiLayerHF:
 
             _kl = _rr_prev_off/self.stdlist.ipl_rr_t(_t0) # 基準環状骨組に対するスケール(オフセット部除く)
         else :
+            print("error 001")
             _t0, _kl = 0, 0
 
         return _t0, _kl, flg_cp_success
@@ -212,23 +219,32 @@ class MultiLayerHF:
     def calc_2(self):
         ''' 各層のu=0から1での挙動計算 各層でのt(u)(u=0,...,1)を格納 '''
 
-        self.list_t_u=np.array([self.num_u for i in range(self.lc)]) # 各層のt(u)を格納する2次元配列を初期化
+        print("--- start calc_2 ---")
 
-        # 初層のt(u)は、初層のt0から1(t0>t_Rmaxの場合), または-1(t0<t_Rmaxの場合)までの等分割とする。
+        self.list_t_u=np.array([self.num_u for i in range(self.lc)]) 
+        # 各層のt(u)を格納する2次元配列を初期化
+
+        # 初層のt(u)は、初層のt0からt_limit(t0>t_Rmaxの場合), または-t_limit(t0<t_Rmaxの場合)までの等分割とする。
 #        t_limit = 0.9999999
-        t_limit = 0.97 
+        self.t_limit = 0.9999999
         # ヒンジオフセットを考慮する際など、折りたたみ最終状態の目標t値(完全折りたたみは0.9999999)
+        self.idx_u_max = 0 
+
         if self.list_t0[0] > self.stdlist.t_at_rr_max :
-            self.list_t_u[0] = np.linspace(self.list_t0[0], t_limit, self.div_u)
+            self.list_t_u[0] = np.linspace(self.list_t0[0], self.t_limit, self.div_u)
         else :
-            self.list_t_u[0] = np.linspace(self.list_t0[0], -t_limit, self.div_u)
+            self.list_t_u[0] = np.linspace(self.list_t0[0], -self.t_limit, self.div_u)
             
+
         if self.lc >= 2: #層数が2以上の場合
-            for _idx_u in range(self.div_u):
-                for _idx_layer in range(1,self.lc):
+            list_t_u_tmp = np.zeros(self.lc) # 一時格納用1次元フォルダ
+            for _idx_u in range(self.div_u): # u loop
+                list_t_u_tmp[0] = self.list_t_u[0][_idx_u] # 必要無いが一応合わせて代入しておく
+                for _idx_layer in range(1,self.lc): # layer loop
                     _h_off_prev = self.h_off #下の層のオフセット量(ここでは共通値とする)
                     _h_off_this = self.h_off #今の層のオフセット量(ここでは共通値とする)
-                    _t_prev = self.list_t_u[_idx_layer-1,_idx_u] # 下の層i-1のt_i-1(u)
+#                    _t_prev = self.list_t_u[_idx_layer-1,_idx_u] # 下の層i-1のt_i-1(u)
+                    _t_prev = list_t_u_tmp[_idx_layer-1]
 
                     kl_prev, kl_this = self.list_kl[_idx_layer-1], self.list_kl[_idx_layer]
                     # 下層、現層のk値
@@ -245,55 +261,25 @@ class MultiLayerHF:
                     _t_this_min = np.max([_t_this_pre_u - 0.01, -0.9999999])
                     _t_this_max = np.min([_t_this_pre_u + 0.01, 0.9999999])
 
-                #    print('_idx_u,_idx_layer=',_idx_u,_idx_layer)
-                #    print('_t_this_min,_t_this_max=',_t_this_min, _t_this_max)
-                #    print('func_cnn=',self.func_cnn(_t_this_min,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this),\
-                #        self.func_cnn(_t_this_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
-
-                    _t_at_rr_max = self.stdlist.t_at_rr_max # R曲線のピークに対応するt値
-
-                    #_t_series = np.linspace(-0.9999999,0.9999999,101)
-                    #print('_t_this_pre_u',_t_this_pre_u)
-#                    for i in range(101):
-#                        print('_t,func_cnn(_t)',_t_series[i],self.func_cnn(_t_series[i],_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
-
                     if _h_off_this != 0: # ヒンジオフセットの設定が有る場合
                         # t_i(u)の定義（2分法で探索。当該層のt0の値により探索方向を場合分け）
-                        #print('check!')
-                        #print("_idx_u, _u, _idx_layer=", _idx_u, _idx_u/(self.div_u-1), _idx_layer)
-                        #print('_t_this_min,_t_this_max=',_t_this_min, _t_this_max)
-                        #print('func_cnn=',self.func_cnn(_t_this_min,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this),\
-                        #   self.func_cnn(_t_this_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
-
+                        check = self.func_cnn(_t_this_min,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this)*\
+                            self.func_cnn(_t_this_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this)
+                        if check >= 0 : 
+                            print("error 102")
+                            print("Bisection boundary error. Search stopped at _idx_u =",_idx_u)
+                            flg_cp_success = False
+                            break # layer loop
                         _t_this, r = opt.bisect(self.func_cnn, _t_this_min, _t_this_max, \
                               args=(_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this), full_output=True, disp=False)
                         flg_cp_success = r.converged
-#                         if self.list_t0[_idx_layer] > _t_at_rr_max : # 初期t0がR曲線のピークより大きい場合
-#                             print('check!')
-#                             print('_t_this_min,_t_this_max=',_t_at_rr_max, 0.9999999)
-#                             print('func_cnn=',self.func_cnn(_t_at_rr_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this),\
-#                             self.func_cnn(0.9999999,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
 
-#                             _t_this, r = opt.bisect(self.func_cnn, _t_at_rr_max, 0.9999999, \
-#                               args=(_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this), full_output=True, disp=False)
-# ##                            _t_this, r = opt.bisect(self.func_cnn, _t_this_pre_u, _t_this_max, \
-# ##                              args=(_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this), full_output=True, disp=False)
-#                             flg_cp_success = r.converged
-#                         else : # 初期t0がR曲線のピークより小さい場合
-#                             print('check!')
-#                             print('_t_this_min,_t_this_max=',-0.9999999,_t_at_rr_max)
-#                             print('func_cnn=',self.func_cnn(-0.9999999,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this),\
-#                             self.func_cnn(_t_at_rr_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
-
-#                             _t_this, r = opt.bisect(self.func_cnn, -0.9999999, _t_at_rr_max, \
-#                               args=(_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this), full_output=True, disp=False)
-#                             flg_cp_success = r.converged
                     else : # ヒンジオフセットの設定が無い場合
                         _rr_this = kl_prev / kl_this * self.stdlist.ipl_ss_t(_t_prev)
                         # t_i(u)の定義 (R(t)の逆関数t(R)を使用。当該層のt0の値により_posと_negを使い分け)
                         if _rr_this < 0 or _rr_this > self.stdlist.rr_max : 
+                            print("error 101")
                             flg_cp_success = False
-                            return 
                         elif self.list_t0[_idx_layer] > self.stdlist.t_at_rr_max :
                             _t_this = self.stdlist.ipl_t_rr_pos(_rr_this)
                             flg_cp_success = True
@@ -302,20 +288,25 @@ class MultiLayerHF:
                             flg_cp_success = True
 
                     if flg_cp_success :
-                        self.list_t_u[_idx_layer,_idx_u] = _t_this
+                        list_t_u_tmp[_idx_layer] = _t_this
+#                        self.list_t_u[_idx_layer,_idx_u] = _t_this
                     else:
-                        print("Calc_2 Layer Connection Error!")
-                        print("_idx_u, _u, _idx_layer=", _idx_u, _idx_u/(self.div_u-1), _idx_layer)
-                        return
+                        print("error 103")
+                        print("Error. Ssearch stopped at _idx_u =",_idx_u)
+                        break # layer loop
+                    # ----- layer loop end -----
+                # 全層エラー無しにt探索できた場合
+                if flg_cp_success :
+                    self.list_t_u[:,_idx_u] = list_t_u_tmp
+                    self.idx_u_max = _idx_u
+                else :
+                    break # u loop
+                # ----- u loop end -----
+            print('Number of layers =',self.lc)
+            print('idx_u_max',self.idx_u_max)
+            print('u_max',self.num_u[self.idx_u_max])
 
-#
-                    #
-#                    if _idx_u % 100 == 0:
-                    print('Done ! _idx_u,_idx_layer=',_idx_u,_idx_layer)
-                    print('_t_this_pre_u=',_t_this_pre_u)
-                    print('_t_this=',_t_this)
-
-        print("calc_2 finished!")
+        print("--- end calc_2 ---")
         return
         
     def func_cnn(self,_t_this,_t_prev,_kl_prev,_kl_this,_d_qq_prev,_h_off_this):
@@ -328,6 +319,9 @@ class MultiLayerHF:
     # ------------ calc 3
     def calc_3(self):
         ''' 各層の諸元をu=0,...,1の範囲で計算 '''
+
+        print("--- start calc_3 ---")
+
 #        self.list_beta_pp=np.zeros((self.lc, self.div_u))
 #        self.list_beta_qq=np.zeros((self.lc, self.div_u)
 #        self.list_phi=np.zeros((self.lc, self.div_u))
@@ -381,7 +375,7 @@ class MultiLayerHF:
 #        self.list_elem_coord_x, self.list_elem_coord_y, self.list_elem_coord_z = self.calc_elem_coord_vec()
         
         if self.lc == 1 :
-            print("calc_3 finished!")
+            print("--- end calc_3 ---")
             return # 1層以下しかない場合はここで終了
 
         # !!!!!!!! この辺もオフセット対応に直す必要有り !!!!!!!!!!!!
@@ -389,7 +383,7 @@ class MultiLayerHF:
             self.list_coordz_pp[_i] = self.list_coordz_qq[_i-1]
             self.list_coordz_qq[_i] = self.list_coordz_pp[_i] + tmp_list_scaled_vv[_i]
 
-        print("calc_3 finished!")
+        print("--- end calc_3 ---")
         return
     
     def calc_elem_coord_vec(self):
