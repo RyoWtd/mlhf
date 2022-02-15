@@ -216,7 +216,8 @@ class MultiLayerHF:
 
         # 初層のt(u)は、初層のt0から1(t0>t_Rmaxの場合), または-1(t0<t_Rmaxの場合)までの等分割とする。
 #        t_limit = 0.9999999
-        t_limit = 0.97 # ヒンジオフセットを考慮する際など、折りたたみ最終状態の目標t値(完全折りたたみは0.9999999)
+        t_limit = 0.97 
+        # ヒンジオフセットを考慮する際など、折りたたみ最終状態の目標t値(完全折りたたみは0.9999999)
         if self.list_t0[0] > self.stdlist.t_at_rr_max :
             self.list_t_u[0] = np.linspace(self.list_t0[0], t_limit, self.div_u)
         else :
@@ -229,12 +230,13 @@ class MultiLayerHF:
                     _h_off_this = self.h_off #今の層のオフセット量(ここでは共通値とする)
                     _t_prev = self.list_t_u[_idx_layer-1,_idx_u] # 下の層i-1のt_i-1(u)
 
-                    kl_prev, kl_this = self.list_kl[_idx_layer-1], self.list_kl[_idx_layer] # 下層、現層のk値
+                    kl_prev, kl_this = self.list_kl[_idx_layer-1], self.list_kl[_idx_layer]
+                    # 下層、現層のk値
                     dummy, d_qq_prev = self.return_offvecs_dpp_dqq(_t_prev,_h_off_prev)
-                    print('kl_prev,kl_this,d_qq_prev',kl_prev,kl_this,d_qq_prev)
+                    # print('kl_prev,kl_this,d_qq_prev',kl_prev,kl_this,d_qq_prev)
 
                     # 層間接続条件
-                    # 探索は、前ステップのt_i(u)±0.005とする
+                    # 探索は、前ステップのt_i(u)±0.01とする
                     if _idx_u == 0:
                         _t_this_pre_u = self.list_t0[_idx_layer]
                     else:
@@ -250,18 +252,18 @@ class MultiLayerHF:
 
                     _t_at_rr_max = self.stdlist.t_at_rr_max # R曲線のピークに対応するt値
 
-                    _t_series = np.linspace(-0.9999999,0.9999999,101)
-                    print('_t_this_pre_u',_t_this_pre_u)
+                    #_t_series = np.linspace(-0.9999999,0.9999999,101)
+                    #print('_t_this_pre_u',_t_this_pre_u)
 #                    for i in range(101):
 #                        print('_t,func_cnn(_t)',_t_series[i],self.func_cnn(_t_series[i],_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
 
                     if _h_off_this != 0: # ヒンジオフセットの設定が有る場合
                         # t_i(u)の定義（2分法で探索。当該層のt0の値により探索方向を場合分け）
-                        print('check!')
-                        print("_idx_u, _u, _idx_layer=", _idx_u, _idx_u/(self.div_u-1), _idx_layer)
-                        print('_t_this_min,_t_this_max=',_t_this_min, _t_this_max)
-                        print('func_cnn=',self.func_cnn(_t_this_min,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this),\
-                           self.func_cnn(_t_this_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
+                        #print('check!')
+                        #print("_idx_u, _u, _idx_layer=", _idx_u, _idx_u/(self.div_u-1), _idx_layer)
+                        #print('_t_this_min,_t_this_max=',_t_this_min, _t_this_max)
+                        #print('func_cnn=',self.func_cnn(_t_this_min,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this),\
+                        #   self.func_cnn(_t_this_max,_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this))
 
                         _t_this, r = opt.bisect(self.func_cnn, _t_this_min, _t_this_max, \
                               args=(_t_prev,kl_prev,kl_this,d_qq_prev,_h_off_this), full_output=True, disp=False)
