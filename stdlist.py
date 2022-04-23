@@ -43,6 +43,16 @@ class StdList:
         self.num_psi = []
         self.num_kappa = []
 
+    def calc(self):
+        ''' SCHF の計算一式を全て実行 '''
+        # calc_1
+        self.calc_1()
+        # calc_2
+        self.calc_2()
+        # calc_ipl
+        self.calc_ipl()
+
+
     # ---------- calc_1 
         
     def calc_1(self):
@@ -83,7 +93,7 @@ class StdList:
         self.num_t_pos = self.num_t[self.idx_rr_max+1:]
 
     def return_param(self, _t):
-        ''' t に対するSCHFの幾何学パラメータを返す'''
+        ''' t に対するSCHFの幾何学パラメータを返す(calc_1)'''
         #theta_p,theta_r,theta_yの計算
         if _t<=0 :
             _theta_p = - PI/2 * _t
@@ -269,6 +279,8 @@ class StdList:
         return (self.ipl_ss_t(_t) - self.ipl_rr_t(_t))/self.ipl_rr_t(_t), self.ipl_vv_t(_t)/self.ipl_rr_t(_t)
 
 
+    # ---------- 以降はメソッド -------------
+
     def calc_crawford_elem_vec_t(self, _t):
         # 部材座標軸ベクトルを返す
         # 部材はP1Q1（P1はX軸上でY=Z=0)とする。
@@ -311,3 +323,187 @@ class StdList:
         tmp_z = np.dot(_R, tmp_z)
         
         return tmp_x, tmp_y, tmp_z
+
+    def calc_xyz(self,_t):
+        # 環状の各節点座標を返す
+        # xx : 節点P_1,Q_1,P_2,Q_2,...,P_N,Q_Nのtでのx座標
+        # yy : 節点P_1,Q_1,P_2,Q_2,...,P_N,Q_Nのtでのy座標
+        # zz : 節点P_1,Q_1,P_2,Q_2,...,P_N,Q_Nのtでのz座標
+
+        _delta = PI/(self.n_sym * 2)
+
+        # X座標
+        xx = np.array(self.ipl_rr_t(_t)*np.cos(_delta*2*(2*0)))
+        xx = np.vstack((xx, np.array(self.ipl_ss_t(_t)*np.cos(_delta*2*(2*0+1)))))
+        for i in range(1,self.n_sym):
+            xx = np.vstack((xx,np.array(self.ipl_rr_t(_t)*np.cos(_delta*2*(2*i)))))
+            xx = np.vstack((xx,np.array(self.ipl_ss_t(_t)*np.cos(_delta*2*(2*i+1)))))
+        xx = np.vstack((xx, self.ipl_rr_t(_t)*np.cos(_delta*2*(2*0))))
+
+        # Y座標
+        yy = np.array(self.ipl_rr_t(_t)*np.sin(_delta*2*(2*0)))
+        yy = np.vstack((yy, np.array(self.ipl_ss_t(_t)*np.sin(_delta*2*(2*0+1)))))
+        for i in range(1,self.n_sym):
+            yy = np.vstack((yy,np.array(self.ipl_rr_t(_t)*np.sin(_delta*2*(2*i)))))
+            yy = np.vstack((yy,np.array(self.ipl_ss_t(_t)*np.sin(_delta*2*(2*i+1)))))
+        yy = np.vstack((yy,self.ipl_rr_t(_t)*np.sin(_delta*2*(2*0))))
+
+        # Z座標
+        zz = np.zeros(_t.shape[0])
+        zz = np.vstack((zz, np.array(self.ipl_vv_t(_t))))
+        for i in range(1,self.n_sym):
+            zz = np.vstack((zz,np.zeros(_t.shape[0])))
+            zz = np.vstack((zz,np.array(self.ipl_vv_t(_t))))
+        zz = np.vstack((zz,np.zeros(_t.shape[0])))
+
+        return xx,yy,zz
+
+    def calc_hvec_xyz(self,_t):
+        # 環状の各節点のヒンジベクトルを返す
+        # hvec_xx : 節点P_1,Q_1,P_2,Q_2,...,P_N,Q_Nのヒンジベクトルのtでのx成分
+        # hvec_yy : 節点P_1,Q_1,P_2,Q_2,...,P_N,Q_Nのヒンジベクトルのtでのy成分
+        # hvec_zz : 節点P_1,Q_1,P_2,Q_2,...,P_N,Q_Nのヒンジベクトルのtでのz成分
+
+        _delta = PI/(self.n_sym * 2)
+
+        beta_pp = self.ipl_beta_pp_t(_t)
+        beta_qq = self.ipl_beta_qq_t(_t)
+        hvec_hh_pp = np.cos(beta_pp)
+        hvec_vv_pp = np.sin(beta_pp)
+        hvec_hh_qq = np.cos(beta_qq)
+        hvec_vv_qq = np.sin(beta_qq)
+
+        # x成分
+        hvec_xx = np.array(hvec_hh_pp*np.cos(_delta*2*(2*0)))
+        hvec_xx = np.vstack((hvec_xx, hvec_hh_qq*np.cos(_delta*2*(2*0+1))))
+        for i in range(1,self.n_sym):
+            hvec_xx = np.vstack((hvec_xx,hvec_hh_pp*np.cos(_delta*2*(2*i))))
+            hvec_xx = np.vstack((hvec_xx,hvec_hh_qq*np.cos(_delta*2*(2*i+1))))
+        hvec_xx = np.vstack((hvec_xx, hvec_hh_pp*np.cos(_delta*2*(2*0))))
+
+        # y成分
+        hvec_yy = np.array(hvec_hh_pp*np.sin(_delta*2*(2*0)))
+        hvec_yy = np.vstack((hvec_yy, hvec_hh_qq*np.sin(_delta*2*(2*0+1))))
+        for i in range(1,self.n_sym):
+            hvec_yy = np.vstack((hvec_yy,hvec_hh_pp*np.sin(_delta*2*(2*i))))
+            hvec_yy = np.vstack((hvec_yy,hvec_hh_qq*np.sin(_delta*2*(2*i+1))))
+        hvec_yy = np.vstack((hvec_yy, hvec_hh_pp*np.sin(_delta*2*(2*0))))
+
+        # z成分
+        hvec_zz = np.array(hvec_vv_pp)
+        hvec_zz = np.vstack((hvec_zz, np.array(hvec_vv_qq)))
+        for i in range(1,self.n_sym):
+            hvec_zz = np.vstack((hvec_zz,np.array(hvec_vv_pp)))
+            hvec_zz = np.vstack((hvec_zz,np.array(hvec_vv_qq)))
+        hvec_zz = np.vstack((hvec_zz,np.array(hvec_vv_pp)))
+
+        return hvec_xx,hvec_yy,hvec_zz
+
+
+
+    def draw_graphs(self,legend=True,outfile=False,path=""):
+        # matplotlibでグラフを描画する
+
+        plt.clf()
+
+        spines = 1.5 # 枠の太さ
+
+        fig=plt.figure(figsize=(10,15))
+
+        ax1=fig.add_subplot(3,2,1)
+        ax1.plot(self.num_t, self.num_rr, '-', label='num_rr', markersize=0.1)
+        ax1.plot(self.num_t, self.num_ss, '-', label='num_ss', markersize=0.1)
+        ax1.plot(self.num_t, self.num_vv, '-', label='num_vv', markersize=0.1)
+        ax1.legend(loc='best')
+        ax1.set_xlabel('parameter t')
+        ax1.set_ylabel('**')
+        ax1.grid('on')
+        ax1.spines["top"].set_linewidth(spines)
+        ax1.spines["left"].set_linewidth(spines)
+        ax1.spines["bottom"].set_linewidth(spines)
+        ax1.spines["right"].set_linewidth(spines)
+        ax1.set_title('R,S,V')
+
+        if legend == False: ax1.get_legend().remove()
+
+        ax2=fig.add_subplot(3,2,2)
+        ax2.plot(self.vecff(self.num_t)[0], self.vecff(self.num_t)[1], '-', label='F vec', markersize=0.1)
+        for i in [0,1,2,3,4,5,6,7,8,9]:
+            _idx = self.num_div * i // 10
+            ax2.plot([0,self.vecff(self.num_t[_idx])[0]], [0,self.vecff(self.num_t[_idx])[1]], '-o', markersize=3, color='gray')
+        ax2.legend(loc='best')
+        ax2.set_xlabel('parameter t')
+        ax2.set_ylabel('**')
+        ax2.set_ylim(0,1)
+        ax2.grid('on')
+        ax2.spines["top"].set_linewidth(spines)
+        ax2.spines["left"].set_linewidth(spines)
+        ax2.spines["bottom"].set_linewidth(spines)
+        ax2.spines["right"].set_linewidth(spines)
+        ax2.set_title('Vector function F')
+        if legend == False: ax2.get_legend().remove()
+
+        ax3=fig.add_subplot(3,2,3)
+        ax3.plot(self.vecgg(self.num_t)[0], self.vecgg(self.num_t)[1], '-', label='G vec', markersize=0.1)
+        for i in [1,2,3,4,5,6,7,8,9]:
+            _idx = self.num_div * i // 10
+            ax3.plot([0,self.vecgg(self.num_t[_idx])[0]], [0,self.vecgg(self.num_t[_idx])[1]], '-o', markersize=3, color='gray')
+        ax3.legend(loc='best')
+        ax3.set_xlabel('parameter t')
+        ax3.set_xlim([-0.9,0.9])
+        ax3.set_ylabel('**')
+        ax3.set_ylim(0,6)
+        ax3.grid('on')
+        ax3.spines["top"].set_linewidth(spines)
+        ax3.spines["left"].set_linewidth(spines)
+        ax3.spines["bottom"].set_linewidth(spines)
+        ax3.spines["right"].set_linewidth(spines)
+        ax3.set_title('Vector function G')
+        if legend == False: ax3.get_legend().remove()
+
+        ax4=fig.add_subplot(3,2,4)
+        ax4.plot(self.num_t, self.num_phi, '-', label='num_phi', markersize=0.1)
+        ax4.plot(self.num_t, self.num_psi, '-', label='num_psi', markersize=0.1)
+        ax4.plot(self.num_t, self.num_kappa, '-', label='num_kappa', markersize=0.1)
+        ax4.legend(loc='best')
+        ax4.set_xlabel('parameter t')
+        ax4.set_ylabel('**')
+        ax4.grid('on')
+        ax4.spines["top"].set_linewidth(spines)
+        ax4.spines["left"].set_linewidth(spines)
+        ax4.spines["bottom"].set_linewidth(spines)
+        ax4.spines["right"].set_linewidth(spines)
+        ax4.set_title('phi, psi, kappa')
+        if legend == False: ax4.get_legend().remove()
+
+        ax5=fig.add_subplot(3,2,5)
+        ax5.plot(self.num_t, self.num_beta_pp, '-', label='num_beta_pp', markersize=0.1)
+        ax5.plot(self.num_t, self.num_beta_qq, '-', label='num_beta_qq', markersize=0.1)
+        ax5.legend(loc='best')
+        ax5.set_xlabel('parameter t')
+        ax5.set_ylabel('**')
+        ax5.grid('on')
+        ax5.spines["top"].set_linewidth(spines)
+        ax5.spines["left"].set_linewidth(spines)
+        ax5.spines["bottom"].set_linewidth(spines)
+        ax5.spines["right"].set_linewidth(spines)
+        ax5.set_title('beta_P, beta_Q')
+        if legend == False: ax5.get_legend().remove()
+
+        ax6=fig.add_subplot(3,2,6)
+        ax6.plot(self.num_rr_neg, self.ipl_t_rr_neg(self.num_rr_neg), '-', label='Rinv_neg', markersize=0.1)
+        ax6.plot(self.num_rr_pos, self.ipl_t_rr_pos(self.num_rr_pos), '-', label='Rinv_pos', markersize=0.1)
+        ax6.legend(loc='best')
+        ax6.set_xlabel('R')
+        ax6.set_ylabel('parameter t')
+        ax6.grid('on')
+        ax6.spines["top"].set_linewidth(spines)
+        ax6.spines["left"].set_linewidth(spines)
+        ax6.spines["bottom"].set_linewidth(spines)
+        ax6.spines["right"].set_linewidth(spines)
+        ax6.set_title('R inverse function')
+        if legend == False: ax6.get_legend().remove()
+
+        if outfile == True:
+            plt.savefig(path,edgecolor="coral")   # プロットしたグラフをファイルsin.pngに保存する
+            plt.show()

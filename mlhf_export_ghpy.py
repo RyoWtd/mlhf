@@ -141,8 +141,6 @@ num_offangle_pp = pick_state_u(offangle_pp_l, lcount, idx_u) #各層点Pの角�
 num_offangle_qq = pick_state_u(offangle_qq_l, lcount, idx_u) #各層点Qの角度offangle
 
 
-
-
 # 要素座標軸ベクトル データツリー作成
 
 # transform定義

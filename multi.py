@@ -338,10 +338,6 @@ class MultiLayerHF:
 #        self.list_offangle_pp, self.list_offangle_qq = self.return_offangles_pp_qq(self.list_t_u)
 
         # 各層の下部節点(P)、上部節点(Q)の全体R,Z座標を格納
-        # list_coordr_pp,list_coodz_pp : 下部ヒンジ中央点のR,Z座標
-        # list_coordr_qq,list_coodz_qq : 上部ヒンジ中央点のR,Z座標
-        # list_coordr_pp_off,list_coodz_pp_off : 下部ヒンジオフセット点のR,Z座標
-        # list_coordr_qq_off,list_coodz_qq_off : 上部ヒンジオフセット点のR,Z座標
 
         self.list_coordr_pp=np.zeros((self.lc, self.div_u))
         self.list_coordz_pp=np.zeros((self.lc, self.div_u))
@@ -376,14 +372,9 @@ class MultiLayerHF:
             list_d_qq_0_tmp=self.list_d_qq_0[:,_idx_u]
             list_d_qq_1_tmp=self.list_d_qq_1[:,_idx_u]
 
-#            vec_frame_scaled_rr[:,_idx_u] = list_d_pp_0_tmp + self.list_kl*self.vecgg(list_t_u_tmp)[0] - list_d_qq_0_tmp
-#            vec_frame_scaled_zz[:,_idx_u] = list_d_pp_1_tmp + self.list_kl*self.vecgg(list_t_u_tmp)[1] - list_d_qq_1_tmp
             vec_frame_scaled_rr[:,_idx_u] = list_d_pp_0_tmp + (self.list_scaled_ss[:,_idx_u]-self.list_scaled_rr[:,_idx_u])\
                  - list_d_qq_0_tmp
             vec_frame_scaled_zz[:,_idx_u] = list_d_pp_1_tmp + self.list_scaled_vv[:,_idx_u] - list_d_qq_1_tmp
-
-#        self.list_coordr_pp_off = self.list_scaled_rr
-#        self.list_coordr_qq_off = self.list_scaled_ss
 
         for _idx_layer in range(0, self.lc):
             # 下部ヒンジ中央点P座標の計算
@@ -402,21 +393,6 @@ class MultiLayerHF:
             # 上部ヒンジオフセット点Qoff 座標の計算
             self.list_coordz_qq_off[_idx_layer,:] = self.list_coordz_qq[_idx_layer,:] + self.list_d_qq_1[_idx_layer,:]
             self.list_coordr_qq_off[_idx_layer,:] = self.list_coordr_qq[_idx_layer,:] + self.list_d_qq_0[_idx_layer,:]
-
-
-        # 最下層の下部節点のZ座標は不変,上部節点のZ座標は最下層のVと同じ
-#        self.list_coordz_pp[0] = self.zz_min
-#        self.list_coordz_qq[0] = self.list_coordz_pp[0] + tmp_list_scaled_vv[0]
-
-        
-#        if self.lc == 1 :
-#            print("<<--- END calc_3 --->>")
-#            return # 1層以下しかない場合はここで終了
-#
-#        # !!!!!!!! この辺もオフセット対応に直す必要有り !!!!!!!!!!!!
-#        for _i in range(1, self.lc):
-#            self.list_coordz_pp[_i] = self.list_coordz_qq[_i-1]
-#            self.list_coordz_qq[_i] = self.list_coordz_pp[_i] + tmp_list_scaled_vv[_i]
 
         print("<<--- END calc_3 --->>")
         return
