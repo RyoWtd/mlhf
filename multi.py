@@ -4,6 +4,7 @@ import scipy.interpolate as ipl
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
 
 PI = np.pi
 
@@ -64,6 +65,8 @@ class MultiLayerHF:
     def calc_1(self):
         ''' 全ての層の初期状態(ti0とki)の計算 '''
         print("<<--- START calc_1 --->>")
+        # 時間計測
+        start_time = time.process_time()
 
         self.list_kl = []
         self.list_t0 = []
@@ -88,7 +91,9 @@ class MultiLayerHF:
             # _layer_length : 生成層のRZ平面上長さ
             _layer_length = np.sqrt((_length_r)**2 + (_length_z)**2)
  
-            if _layer_length < self.layer_length_min : _flag = False
+            if _layer_length < self.layer_length_min :
+                print('new layer length too short, not made')
+                _flag = False
             # 生成層の長さが規定値未満なら新しく層を追加しない
 
             if _flag : # 層追加条件を満たす場合
@@ -115,32 +120,82 @@ class MultiLayerHF:
         print(self.list_t0)
         print(" list_kl")
         print(self.list_kl)
+
+        # 終了
+        end_time = time.process_time()
+
         print("<<--- END calc_1 --->>")
+
+        # 処理時間出力(秒)
+        proc_time = end_time - start_time
+        print('calc_1 time = ',proc_time)
+
         return
 
     def calc_t0_kl(self, _rr_prev, _zz_prev, _h_off):
         ''' 各層の指定母線へのフィッティングと、そのときの各層のti(u=0),klの計算 '''
         
         # Zの最大値に対するtの取得
-        _tmin, _tmax = self.return_tminmax(_rr_prev, _zz_prev, _h_off)
+        _tmin, _tmax, _tnegmax, _tposmin = self.return_tminmax(_rr_prev, _zz_prev, _h_off)
+        print('tmin,tmax=',_tmin,_tmax)
 
         # 母線曲線とベクトルG×R_prevの交点サーチ
         # 探索成功フラグ
         flg_cp_success = False
+        flg_cp_success_pos, flg_cp_success_neg = False, False
         
         # Positive 方向の二分法サーチ
-        if self.tmpfunc(np.max([_tmin,0.0001]), _rr_prev, _zz_prev, _h_off) * self.tmpfunc(_tmax, _rr_prev, _zz_prev, _h_off) < 0:
+#        if self.tmpfunc(np.max([_tmin,0.0001]), _rr_prev, _zz_prev, _h_off) * self.tmpfunc(_tmax, _rr_prev, _zz_prev, _h_off) < 0:
+#            # Positive 方向の探索
+#            _t0, r = opt.bisect(self.tmpfunc, np.max([_tmin,0.0001]), _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            flg_cp_success = r.converged
+#        elif self.tmpfunc(_tmin, _rr_prev, _zz_prev, _h_off) * self.tmpfunc(np.min([_tmax,-0.0001]), _rr_prev, _zz_prev, _h_off) < 0:
+#            # Negative 方向の探索
+#            _t0, r = opt.bisect(self.tmpfunc, _tmin, np.min([_tmax,-0.0001]), args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            flg_cp_success = r.converged
+
+        if self.tmpfunc(np.max([_tmin,0.001]), _rr_prev, _zz_prev, _h_off) * self.tmpfunc(_tmax, _rr_prev, _zz_prev, _h_off) < 0:
             # Positive 方向の探索
-            _t0, r = opt.bisect(self.tmpfunc, np.max([_tmin,0.0001]), _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
-            flg_cp_success = r.converged
-        elif self.tmpfunc(_tmin, _rr_prev, _zz_prev, _h_off) * self.tmpfunc(np.min([_tmax,-0.0001]), _rr_prev, _zz_prev, _h_off) < 0:
+#            _t0_pos, r = opt.bisect(self.tmpfunc, _tposmin, _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_pos, r = opt.toms748(self.tmpfunc, _tposmin, _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_pos, r = opt.brentq(self.tmpfunc, _tposmin, _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+            _t0_pos, r = opt.brenth(self.tmpfunc, _tposmin, _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_pos, r = opt.ridder(self.tmpfunc, _tposmin, _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_pos, r = opt.brenth(
+#                self.tmpfunc, _tposmin, _tmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False,
+#                xtol=1e-8, rtol=1e-5)
+            flg_cp_success_pos = r.converged
+            print("I got!! positive _t0 =", _t0_pos)
+        if self.tmpfunc(_tmin, _rr_prev, _zz_prev, _h_off) * self.tmpfunc(np.min([_tmax,-0.001]), _rr_prev, _zz_prev, _h_off) < 0:
             # Negative 方向の探索
-            _t0, r = opt.bisect(self.tmpfunc, _tmin, np.min([_tmax,-0.0001]), args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
-            flg_cp_success = r.converged
-        
+#            _t0_neg, r = opt.bisect(self.tmpfunc, _tmin, _tnegmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_neg, r = opt.toms748(self.tmpfunc, _tmin, _tnegmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_neg, r = opt.brentq(self.tmpfunc, _tmin, _tnegmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+            _t0_neg, r = opt.brenth(self.tmpfunc, _tmin, _tnegmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_neg, r = opt.ridder(self.tmpfunc, _tmin, _tnegmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False)
+#            _t0_neg, r = opt.brenth(
+#                self.tmpfunc, _tmin, _tnegmax, args=(_rr_prev, _zz_prev, _h_off), full_output=True, disp=False,
+#                xtol=1e-8, rtol=1e-5)
+            flg_cp_success_neg = r.converged
+            print("I got!! negative _t0 =", _t0_neg)
+
+        # 失敗したときのダミー値
+        if flg_cp_success_pos == False:
+            _t0_pos = 1.0
+        if flg_cp_success_neg == False:
+            _t0_neg = -1.0
+
+        flg_cp_success = flg_cp_success_pos or flg_cp_success_neg
+        print('flg_cp_success,flg_cp_success_pos,flg_cp_success_neg',flg_cp_success,flg_cp_success_pos,flg_cp_success_neg)
+
         # 成功ならt=t0 の時の当該層のスケール係数kを計算
         if flg_cp_success :
+            if np.abs(_t0_pos) <= np.abs(_t0_neg): # 絶対値の小さい方を採用
+                _t0 = _t0_pos
+            else:
+                _t0 = _t0_neg
             _d_pp, _d_qq = self.return_offvecs_dpp_dqq(_t0, _h_off)
+            print('decided _t0', _t0)
             _rr_prev_off = _rr_prev + _d_pp[0]
             _kl = _rr_prev_off/self.stdlist.ipl_rr_t(_t0) # 基準環状骨組に対するスケール(オフセット部除く)
         else :
@@ -151,19 +206,48 @@ class MultiLayerHF:
     
     def return_tminmax(self, _rr_prev, _zz_prev, _h_off):
         ''' 二分法サーチをするときのtの上下限値（母線のZの範囲と重なる範囲） '''
-        for _t in np.linspace(0,-1,1000):
+        #tmin : 取りうるtの最小値(negative)
+        #tmax : 取りうるtの最大値(positive)
+        #tnegmax : t=-0.001と符号が同じでありつづけるtの最小値(tのnegative側球根探索上限値)
+        #tposmax : t=0.001と符号が同じでありつづけるtの最大値(tのpositive側球根探索下限値)
+
+        _tnegmax = -0.001
+        _tposmin = 0.001
+
+        func_val_init = self.tmpfunc(-0.001, _rr_prev, _zz_prev, _h_off)
+        for _t in np.linspace(-0.001,-1,1000):
             _d_pp, _d_qq = self.return_offvecs_dpp_dqq(_t, _h_off)
+
             dummy, zz_tmp = self.return_next_rr_and_zz(_t, _rr_prev, _zz_prev, _d_pp, _d_qq)
             if zz_tmp > self.zz_max:
-                break
+                break #評価関数のz値が母線関数のZの定義域を超えたら止める。
             _tmin = _t
-        for _t in np.linspace(0,1,1000):
+
+           # _tmin確定条件追加 4/30
+            func_val_tmp =self.tmpfunc(_t, _rr_prev, _zz_prev, _h_off)
+            if func_val_init * func_val_tmp < 0.0:
+                break #評価関数の符号がt=-0.001でのものと逆符号になる最初の点で止める
+
+            _tnegmax = _t
+
+        func_val_init = self.tmpfunc(0.001, _rr_prev, _zz_prev, _h_off)
+        for _t in np.linspace(0.001,1,1000):
             _d_pp, _d_qq = self.return_offvecs_dpp_dqq(_t, _h_off)
+
             dummy, zz_tmp = self.return_next_rr_and_zz(_t, _rr_prev, _zz_prev, _d_pp, _d_qq)
             if zz_tmp > self.zz_max:
-                break
+                break #評価関数のz値が母線関数のZの定義域を超えたら止める。
             _tmax = _t
-        return _tmin, _tmax
+
+           # _tmax確定条件追加 4/30
+            func_val_tmp =self.tmpfunc(_t, _rr_prev, _zz_prev, _h_off)
+            if func_val_init * func_val_tmp < 0.0:
+                _tmax = _t
+                break #評価関数の符号がt=0.001でのものと逆符号になる最初の点で止める
+
+                _tposmin = _t
+
+        return _tmin, _tmax, _tnegmax, _tposmin
 
     def tmpfunc(self, _t, _rr_prev, _zz_prev, _h_off):
         ''' 交点判定関数（オフセット有り）(値が0の時、R_prev*Gの軌跡と指定母線が交わる) '''
@@ -209,6 +293,9 @@ class MultiLayerHF:
         ''' 各層のu=0から1での挙動計算 各層でのt(u)(u=0,...,1)を格納 '''
 
         print("<<--- START calc_2 --->>")
+        # 時間計測
+        start_time = time.process_time()
+
 
 #        self.list_t_u=np.array([self.num_u for i in range(self.lc)]) 
         self.list_t_u=np.zeros((self.lc,self.div_u))
@@ -295,7 +382,15 @@ class MultiLayerHF:
             print(' idx_u_max, u_max =',self.idx_u_max, self.num_u[self.idx_u_max])
             print(' t(u_max)=',self.list_t_u[:,self.idx_u_max])
 
+        # 終了
+        end_time = time.process_time()
+
         print("<<--- END calc_2 --->>")
+
+        # 処理時間出力(秒)
+        proc_time = end_time - start_time
+        print('calc_2 time = ',proc_time)
+
         return
         
     def func_cnn(self,_t_this,_t_prev,_kl_prev,_kl_this,_d_qq_prev,_h_off_this):
@@ -310,6 +405,8 @@ class MultiLayerHF:
         ''' 各層の諸元をu=0,...,1の範囲で計算 '''
 
         print("<<--- START calc_3 --->>")
+        # 時間計測
+        start_time = time.process_time()
 
         if self.lc == 0 :
             print(" error! : lc = 0")  # 層が無い場合はここで終了
@@ -394,7 +491,15 @@ class MultiLayerHF:
             self.list_coordz_qq_off[_idx_layer,:] = self.list_coordz_qq[_idx_layer,:] + self.list_d_qq_1[_idx_layer,:]
             self.list_coordr_qq_off[_idx_layer,:] = self.list_coordr_qq[_idx_layer,:] + self.list_d_qq_0[_idx_layer,:]
 
+        # 終了
+        end_time = time.process_time()
+
         print("<<--- END calc_3 --->>")
+
+        # 処理時間出力(秒)
+        proc_time = end_time - start_time
+        print('calc_3 time = ',proc_time)
+
         return
 
     def mapping_foreach_u(self, _list_t_u, _ipl_x_t):
